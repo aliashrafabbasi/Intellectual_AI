@@ -108,6 +108,24 @@ streamlit run streamlit_app.py
 
 Open the URL Streamlit prints (typically **http://localhost:8501**). Ensure `INTELLECTUAL_API_URL` in `.env` points at the same host/port as Uvicorn.
 
+### Docker (full stack)
+
+1. Copy and edit environment variables:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Set **`GROQ_API_KEY`** (required). Compose overrides `MONGO_URI` and `INTELLECTUAL_API_URL` for container networking; optional keys such as `GROQ_MODEL` still apply when present in `.env`.
+
+2. Start MongoDB, the API, and Streamlit:
+
+   ```bash
+   docker compose up --build
+   ```
+
+3. Open the UI at **[http://localhost:8501](http://localhost:8501)** and API docs at **[http://localhost:8000/docs](http://localhost:8000/docs)**. MongoDB is **not** published on the host (only reachable as `mongo` inside Compose), which avoids conflicts if you already run MongoDB on port 27017. To open a shell: `docker compose exec mongo mongosh`.
+
 ---
 
 ## API overview (prefix `/api/v1`)
@@ -131,6 +149,8 @@ Intellectual_AI_Chat/
 ├── main.py                 # FastAPI entry, loads .env
 ├── streamlit_app.py        # Streamlit UI
 ├── requirements.txt        # Python dependencies
+├── Dockerfile              # Container image (API default CMD)
+├── docker-compose.yml      # Mongo + API + Streamlit
 ├── .env.example            # Template for secrets (copy to .env)
 ├── app/
 │   ├── api/v1/chat.py      # Chat routes
@@ -148,6 +168,8 @@ Intellectual_AI_Chat/
 
 ## Troubleshooting
 
+- **Docker build fails with `network is unreachable` / IPv6 (`dial tcp [...]:443`)** — The daemon is pulling `python:3.12-slim` over a path that uses IPv6, but this machine has no working IPv6 route. Try: **Docker Desktop** → Settings → Resources → Network → adjust options or reset; or on Linux, make the system prefer IPv4 for name resolution (e.g. in `/etc/gai.conf`, uncomment the line `precedence ::ffff:0:0/96  100`); or fix/disable broken IPv6 routing. Then run `docker pull python:3.12-slim` and `docker compose build` again.
+- **`Bind for 0.0.0.0:27017 failed: port is already allocated`** — Something else is using host port 27017 (often a system MongoDB or another container). The Compose file does **not** map Mongo to the host; if you still see this, you may be on an old `docker-compose.yml`—pull the latest—or stop the other process (`docker ps`, or `sudo ss -tlnp | grep 27017`).
 - **`ServerSelectionTimeoutError` / Mongo errors** — MongoDB is not running or `MONGO_URI` is wrong. Confirm with `mongosh` or your Docker container.
 - **Streamlit shows “Unavailable” for the API** — Start Uvicorn first; check `INTELLECTUAL_API_URL` and firewall/port usage.
 - **401 / errors from Groq** — Invalid or missing `GROQ_API_KEY`; confirm the key in the Groq console.
