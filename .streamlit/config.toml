@@ -1,0 +1,5 @@
+# Match the ChatGPT-style light canvas in streamlit_app.py (avoids a dark main pane
+# when the browser or OS prefers dark mode).
+[theme]
+base = "light"
+primaryColor = "#10a37f"
