@@ -12,5 +12,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 # Lower latency: llama-3.1-8b-instant. For higher quality use e.g. llama-3.3-70b-versatile or openai/gpt-oss-120b
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 GROQ_MAX_TOKENS = int(os.getenv("GROQ_MAX_TOKENS", "4096"))
+# Short titles for auto-naming chats (cheap completion)
+GROQ_TITLE_MAX_TOKENS = int(os.getenv("GROQ_TITLE_MAX_TOKENS", "96"))
 
 CHAT_MEMORY_DAYS = 7

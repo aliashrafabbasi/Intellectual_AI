@@ -16,6 +16,18 @@ def create_chat(session_id: str):
     chats_collection.insert_one(chat)
     return chat
 
+
+def ensure_chat(session_id: str) -> dict:
+    """Return existing chat or insert an empty one (for sidebar list before first message)."""
+    existing = get_chat(session_id)
+    if existing:
+        existing.pop("_id", None)
+        return existing
+    chat = create_chat(session_id)
+    if isinstance(chat, dict) and "_id" in chat:
+        chat.pop("_id", None)
+    return chat
+
 def add_messages(session_id:str , role:str,content:str):
     chats_collection.update_one(
         {"session_id":session_id},
@@ -24,7 +36,22 @@ def add_messages(session_id:str , role:str,content:str):
 
 
 def get_all_chats():
-    return list(chats_collection.find({},{"_id":0}))
+    """Full documents (includes messages). Prefer list_chat_summaries for listing."""
+    return list(chats_collection.find({}, {"_id": 0}))
+
+
+def list_chat_summaries():
+    """Sidebar list only — excludes messages so large histories cannot stall /api/v1/chats."""
+    cur = chats_collection.find({}, {"_id": 0, "messages": 0}).sort("created_at", -1)
+    return list(cur)
+
+
+def get_chat_document(session_id: str) -> dict | None:
+    doc = chats_collection.find_one({"session_id": session_id})
+    if doc is None:
+        return None
+    doc.pop("_id", None)
+    return doc
 
 def delete_chat_by_session(session_id: str):
     result = chats_collection.delete_one({"session_id": session_id})

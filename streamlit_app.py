@@ -15,6 +15,7 @@ from typing import Any, Iterator
 import httpx
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -24,6 +25,45 @@ DEFAULT_API = os.getenv("INTELLECTUAL_API_URL", "http://127.0.0.1:8000")
 _APP_DIR = os.path.dirname(os.path.abspath(__file__))
 _AVATAR_USER = os.path.join(_APP_DIR, "assets", "chat_avatar_user.png")
 _AVATAR_AI = os.path.join(_APP_DIR, "assets", "chat_avatar_ai.png")
+# Streamlit may error on missing image paths; fall back to built-in avatars.
+_USER_AVATAR: str | None = _AVATAR_USER if os.path.isfile(_AVATAR_USER) else None
+_AI_AVATAR: str | None = _AVATAR_AI if os.path.isfile(_AVATAR_AI) else None
+
+
+def _expand_sidebar_via_browser() -> None:
+    """Click Streamlit's native sidebar toggle when the drawer is collapsed (parent DOM)."""
+    components.html(
+        """
+<script>
+(function () {
+  function clickToggle(doc) {
+    if (!doc || !doc.querySelector) return false;
+    /* Streamlit ≥1.40: collapsed drawer uses stExpandSidebarButton (>> chevron), not stSidebarCollapseButton */
+    var sx = doc.querySelector('[data-testid="stExpandSidebarButton"]');
+    if (sx) { sx.click(); return true; }
+    var expand = doc.querySelector('button[aria-label="Expand sidebar"]');
+    if (expand) { expand.click(); return true; }
+    var collapse = doc.querySelector('button[aria-label="Collapse sidebar"]');
+    if (collapse) { collapse.click(); return true; }
+    var el = doc.querySelector('[data-testid="stSidebarCollapseButton"]');
+    if (el) { el.click(); return true; }
+    var hdr = doc.querySelectorAll('[data-testid="stHeader"] button');
+    for (var i = 0; i < hdr.length; i++) {
+      var lab = (hdr[i].getAttribute('aria-label') || '').toLowerCase();
+      if (lab.indexOf('sidebar') !== -1) { hdr[i].click(); return true; }
+    }
+    return false;
+  }
+  try {
+    if (!clickToggle(window.parent.document) && window.parent.parent) {
+      clickToggle(window.parent.parent.document);
+    }
+  } catch (e) {}
+})();
+</script>
+        """,
+        height=0,
+    )
 
 
 def inject_styles() -> None:
@@ -40,6 +80,10 @@ def inject_styles() -> None:
             --gpt-muted: #8e8ea0;
             --gpt-accent: #10a37f;
             --gpt-sidebar: #202123;
+            /* Chat composer — placeholder/icon only (no focus rings) */
+            --composer-placeholder: #374151;
+            --composer-icon: #1f2937;
+            --composer-accent-soft: #0d9488;
           }
           /* Whole app shell — Streamlit dark base was leaving the main pane charcoal */
           [data-testid="stAppViewContainer"],
@@ -52,17 +96,30 @@ def inject_styles() -> None:
             background: var(--gpt-bg) !important;
             color: var(--gpt-text) !important;
           }
-          html, body, [class*="css"] {
+          /* Do not use [class*="css"] — Streamlit emotion classes match and layout can collapse. */
+          html, body {
             font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
               "Helvetica Neue", Arial, sans-serif !important;
             -webkit-font-smoothing: antialiased;
+          }
+          section[data-testid="stMain"],
+          [data-testid="stSidebar"],
+          header[data-testid="stHeader"] {
+            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+              "Helvetica Neue", Arial, sans-serif !important;
           }
           .main {
             background: var(--gpt-bg) !important;
           }
           .block-container {
             max-width: min(768px, 100%) !important;
-            padding: 0.35rem clamp(0.75rem, 3vw, 1.25rem) 2.5rem !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 0.35rem clamp(0.75rem, 3vw, 1.25rem) 5rem !important;
+          }
+          section[data-testid="stMain"] {
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
           }
           /* Prevent browser dark-mode from styling inputs charcoal */
           section.main {
@@ -71,6 +128,147 @@ def inject_styles() -> None:
           header[data-testid="stHeader"] {
             background: var(--gpt-bg) !important;
             border-bottom: 1px solid var(--gpt-border) !important;
+          }
+          /*
+           * Native sidebar toggle (<< / >>) — must beat Base Web + theme; darker chip so it
+           * never blends into the light grey header (Streamlit often sets fadedText60 on icons).
+           */
+          [data-testid="stSidebarCollapseButton"] {
+            background-color: #14151c !important;
+            border-radius: 10px !important;
+            border: 2px solid #3f3f50 !important;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28) !important;
+            opacity: 1 !important;
+          }
+          [data-testid="stSidebarCollapseButton"] button,
+          [data-testid="stSidebarCollapseButton"] [data-baseweb="button"],
+          [data-testid="stSidebarCollapseButton"] button[kind="headerNoPadding"] {
+            background-color: #14151c !important;
+            background-image: none !important;
+            border: none !important;
+            border-radius: 8px !important;
+            box-shadow: none !important;
+            min-width: 2.5rem !important;
+            min-height: 2.5rem !important;
+            opacity: 1 !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+          }
+          [data-testid="stSidebarCollapseButton"] button:hover,
+          [data-testid="stSidebarCollapseButton"] [data-baseweb="button"]:hover {
+            background-color: #1f212c !important;
+            outline: 2px solid #10a37f !important;
+            outline-offset: 0 !important;
+          }
+          [data-testid="stSidebarCollapseButton"] svg,
+          [data-testid="stSidebarCollapseButton"] path,
+          [data-testid="stSidebarCollapseButton"] use,
+          [data-testid="stSidebarCollapseButton"] circle {
+            fill: #ffffff !important;
+            stroke: #ffffff !important;
+            color: #ffffff !important;
+            opacity: 1 !important;
+          }
+          [data-testid="stSidebarCollapseButton"] [data-testid="stIconMaterial"],
+          [data-testid="stSidebarCollapseButton"] span {
+            color: #ffffff !important;
+            opacity: 1 !important;
+            -webkit-text-fill-color: #ffffff !important;
+          }
+          /* Same control when Streamlit hoists it beside the main toolbar */
+          header[data-testid="stHeader"] [data-testid="stSidebarCollapseButton"],
+          header[data-testid="stHeader"] [data-testid="stSidebarCollapseButton"] button {
+            background-color: #14151c !important;
+            border-color: #3f3f50 !important;
+          }
+          /*
+           * stExpandSidebarButton — ONLY when sidebar is collapsed (Streamlit index bundle).
+           * Icon is forced to theme fadedText60 in React; must override wrapper + inner Base Web + SVG.
+           */
+          [data-testid="stExpandSidebarButton"] {
+            background-color: #14151c !important;
+            border-radius: 10px !important;
+            border: 2px solid #3f3f50 !important;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28) !important;
+            opacity: 1 !important;
+          }
+          [data-testid="stExpandSidebarButton"] button,
+          [data-testid="stExpandSidebarButton"] [data-baseweb="button"],
+          [data-testid="stExpandSidebarButton"] button[kind="headerNoPadding"] {
+            background-color: #14151c !important;
+            background-image: none !important;
+            border: none !important;
+            border-radius: 8px !important;
+            box-shadow: none !important;
+            min-width: 2.5rem !important;
+            min-height: 2.5rem !important;
+            opacity: 1 !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+          }
+          [data-testid="stExpandSidebarButton"] button:hover,
+          [data-testid="stExpandSidebarButton"] [data-baseweb="button"]:hover {
+            background-color: #1f212c !important;
+            outline: 2px solid #10a37f !important;
+            outline-offset: 0 !important;
+          }
+          [data-testid="stExpandSidebarButton"] svg,
+          [data-testid="stExpandSidebarButton"] path,
+          [data-testid="stExpandSidebarButton"] use,
+          [data-testid="stExpandSidebarButton"] circle {
+            fill: #ffffff !important;
+            stroke: #ffffff !important;
+            color: #ffffff !important;
+            opacity: 1 !important;
+          }
+          [data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"],
+          [data-testid="stExpandSidebarButton"] span {
+            color: #ffffff !important;
+            opacity: 1 !important;
+            -webkit-text-fill-color: #ffffff !important;
+          }
+          header[data-testid="stHeader"] [data-testid="stExpandSidebarButton"],
+          header[data-testid="stHeader"] [data-testid="stExpandSidebarButton"] button {
+            background-color: #14151c !important;
+            border-color: #3f3f50 !important;
+          }
+          /*
+           * Header expand/collapse (when sidebar is hidden the control is ONLY here — Header.tsx).
+           * Older Streamlit used weak tokens; these selectors match aria-label from PR #14563.
+           */
+          header[data-testid="stHeader"] button[aria-label="Expand sidebar"],
+          header[data-testid="stHeader"] button[aria-label="Collapse sidebar"],
+          section[data-testid="stAppViewContainer"] button[aria-label="Expand sidebar"],
+          section[data-testid="stAppViewContainer"] button[aria-label="Collapse sidebar"] {
+            background-color: #0a0b10 !important;
+            background-image: none !important;
+            border: 2px solid #52525b !important;
+            border-radius: 10px !important;
+            box-shadow: 0 2px 14px rgba(0, 0, 0, 0.4) !important;
+            min-width: 2.65rem !important;
+            min-height: 2.65rem !important;
+            opacity: 1 !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+          }
+          header[data-testid="stHeader"] button[aria-label="Expand sidebar"]:hover,
+          header[data-testid="stHeader"] button[aria-label="Collapse sidebar"]:hover {
+            background-color: #171923 !important;
+            border-color: #10a37f !important;
+            box-shadow: 0 3px 18px rgba(16, 163, 127, 0.35) !important;
+          }
+          header[data-testid="stHeader"] button[aria-label="Expand sidebar"] svg,
+          header[data-testid="stHeader"] button[aria-label="Expand sidebar"] path,
+          header[data-testid="stHeader"] button[aria-label="Collapse sidebar"] svg,
+          header[data-testid="stHeader"] button[aria-label="Collapse sidebar"] path {
+            fill: #ffffff !important;
+            stroke: #ffffff !important;
+            opacity: 1 !important;
+          }
+          header[data-testid="stHeader"] button[aria-label="Expand sidebar"] [data-testid="stIconMaterial"],
+          header[data-testid="stHeader"] button[aria-label="Collapse sidebar"] [data-testid="stIconMaterial"] {
+            color: #ffffff !important;
+            opacity: 1 !important;
           }
           /* Sidebar — dark strip like ChatGPT */
           [data-testid="stSidebar"] {
@@ -87,25 +285,71 @@ def inject_styles() -> None:
           [data-testid="stSidebar"] [data-testid="stCaption"] {
             color: #8e8ea0 !important;
           }
-          [data-testid="stSidebar"] .stExpander {
+          [data-testid="stSidebar"] .stExpander,
+          [data-testid="stSidebar"] [data-testid="stExpander"] {
             background: #2f2f2f !important;
             border: 1px solid #4a4a4a !important;
             border-radius: 8px !important;
+          }
+          /* Expander header/toggle — Base Web often paints these white in “light” builds */
+          [data-testid="stSidebar"] [data-testid="stExpander"] button,
+          [data-testid="stSidebar"] [data-testid="stExpander"] summary,
+          [data-testid="stSidebar"] details.streamlit-expander summary,
+          [data-testid="stSidebar"] .streamlit-expanderHeader {
+            background: #2f2f2f !important;
+            background-color: #2f2f2f !important;
+            color: #ececf1 !important;
+            border: none !important;
+            box-shadow: none !important;
+          }
+          [data-testid="stSidebar"] [data-testid="stExpander"] button:hover,
+          [data-testid="stSidebar"] details.streamlit-expander summary:hover {
+            background: #3f3f46 !important;
+            color: #ffffff !important;
+          }
+          [data-testid="stSidebar"] [data-testid="stExpander"] svg,
+          [data-testid="stSidebar"] details.streamlit-expander summary svg {
+            fill: #ececf1 !important;
+            color: #ececf1 !important;
+          }
+          [data-testid="stSidebar"] [data-testid="stExpander"] [role="button"],
+          [data-testid="stSidebar"] [data-baseweb="accordion"] button {
+            background: #2f2f2f !important;
+            color: #ececf1 !important;
           }
           [data-testid="stSidebar"] input {
             background: #40414f !important;
             color: #ececf1 !important;
             border-color: #565869 !important;
           }
+          /* Default sidebar buttons = dark surface (fixes white “Untitled chat” rows) */
+          [data-testid="stSidebar"] .stButton > button {
+            background: #343541 !important;
+            background-color: #343541 !important;
+            color: #ececf1 !important;
+            border: 1px solid #565869 !important;
+            border-radius: 6px !important;
+            font-weight: 400 !important;
+          }
+          [data-testid="stSidebar"] .stButton > button:hover {
+            background: #40414f !important;
+            border-color: #6e6e80 !important;
+            color: #ffffff !important;
+          }
           [data-testid="stSidebar"] .stButton > button[kind="primary"] {
             background: var(--gpt-accent) !important;
+            background-color: var(--gpt-accent) !important;
             color: #ffffff !important;
             border: none !important;
             font-weight: 600 !important;
             border-radius: 6px !important;
           }
+          [data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
+            background: #0d8f6e !important;
+            filter: none !important;
+          }
           [data-testid="stSidebar"] .stButton > button[kind="secondary"] {
-            background: transparent !important;
+            background: #343541 !important;
             color: #ececf1 !important;
             border: 1px solid #565869 !important;
             border-radius: 6px !important;
@@ -133,28 +377,62 @@ def inject_styles() -> None:
             max-width: 2.5rem !important;
             min-width: 2.5rem !important;
           }
-          /* Conversation title row only (same row as ⋮ popover) */
-          [data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div:first-child .stButton > button {
+          /* Base Web buttons in sidebar — dark fill (runs before conversation overrides below) */
+          [data-testid="stSidebar"] [data-baseweb="button"]:not([kind="primary"]) {
+            background-color: #343541 !important;
+            background-image: none !important;
+            color: #ececf1 !important;
+            border-color: #565869 !important;
+          }
+          [data-testid="stSidebar"] [data-baseweb="button"][kind="primary"] {
+            background-color: var(--gpt-accent) !important;
+            border-color: transparent !important;
+            color: #ffffff !important;
+          }
+          /*
+           * Conversation title row — Base Web paints WHITE on inner layers / column.
+           * Darken the column shell, keep button transparent so label stays readable.
+           */
+          [data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div:first-child {
+            background: #343541 !important;
+            background-color: #343541 !important;
+            border: 1px solid #565869 !important;
+            border-radius: 6px !important;
+            overflow: hidden !important;
+          }
+          [data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div:first-child .stButton,
+          [data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div:first-child .stButton > div {
+            background: transparent !important;
+            background-color: transparent !important;
+          }
+          [data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div:first-child .stButton > button,
+          [data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div:first-child [data-baseweb="button"] {
             width: 100% !important;
             max-width: 100% !important;
             justify-content: flex-start !important;
             text-align: left !important;
             background: transparent !important;
+            background-color: transparent !important;
+            background-image: none !important;
             border: none !important;
             color: #ececf1 !important;
             font-weight: 400 !important;
             font-size: 0.875rem !important;
             padding: 0.45rem 0.6rem !important;
-            border-radius: 6px !important;
+            border-radius: 0 !important;
             min-height: 2.25rem !important;
             box-shadow: none !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
             white-space: nowrap !important;
           }
-          [data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div:first-child .stButton > button:hover {
-            background: #2f2f2f !important;
-            border: none !important;
+          [data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div:first-child [data-baseweb="button"] > div {
+            background-color: transparent !important;
+            background: transparent !important;
+          }
+          [data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div:first-child .stButton > button:hover,
+          [data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div:first-child [data-baseweb="button"]:hover {
+            background: rgba(255, 255, 255, 0.06) !important;
           }
           /*
            * Popover trigger uses data-testid="stPopoverButton" (not a direct child of stPopover).
@@ -237,6 +515,23 @@ def inject_styles() -> None:
             border: 1px solid #d1d5db !important;
             color-scheme: light !important;
           }
+          /* Dialog: strip Base Web wrapper shadows/borders so focus is a single ring */
+          [role="dialog"] [data-baseweb="input"],
+          [role="dialog"] [data-baseweb="textarea"],
+          [role="dialog"] [data-baseweb="input"]:focus-within,
+          [role="dialog"] [data-baseweb="textarea"]:focus-within {
+            box-shadow: none !important;
+            border: none !important;
+            background: transparent !important;
+          }
+          [role="dialog"] [data-baseweb="input"] input:focus,
+          [role="dialog"] [data-baseweb="input"] input:focus-visible,
+          [role="dialog"] [data-baseweb="textarea"] textarea:focus,
+          [role="dialog"] [data-baseweb="textarea"] textarea:focus-visible {
+            outline: none !important;
+            box-shadow: none !important;
+            border-color: var(--gpt-accent) !important;
+          }
           [role="dialog"] label,
           [role="dialog"] [data-testid="stWidgetLabel"] p,
           [role="dialog"] .stMarkdown p {
@@ -252,6 +547,22 @@ def inject_styles() -> None:
             color: #111827 !important;
             border-color: #d1d5db !important;
             color-scheme: light !important;
+          }
+          [data-baseweb="modal"] [data-baseweb="input"],
+          [data-baseweb="modal"] [data-baseweb="textarea"],
+          [data-baseweb="modal"] [data-baseweb="input"]:focus-within,
+          [data-baseweb="modal"] [data-baseweb="textarea"]:focus-within {
+            box-shadow: none !important;
+            border: none !important;
+            background: transparent !important;
+          }
+          [data-baseweb="modal"] [data-baseweb="input"] input:focus,
+          [data-baseweb="modal"] [data-baseweb="input"] input:focus-visible,
+          [data-baseweb="modal"] [data-baseweb="textarea"] textarea:focus,
+          [data-baseweb="modal"] [data-baseweb="textarea"] textarea:focus-visible {
+            outline: none !important;
+            box-shadow: none !important;
+            border-color: var(--gpt-accent) !important;
           }
           .status-dot { font-size: 0.75rem; color: #8e8ea0; }
           /* Chat avatars — circular logos (slightly larger for readability) */
@@ -328,49 +639,88 @@ def inject_styles() -> None:
             border: none !important;
             box-shadow: none !important;
           }
-          /* Centered composer — force light surface (theme often darkens this widget) */
+          /* Main pane: ChatGPT-style bottom composer */
           section.main [data-testid="stVerticalBlock"] > div:has([data-testid="stChatInput"]) {
             max-width: min(768px, 100%) !important;
             margin-left: auto !important;
             margin-right: auto !important;
-            padding-top: 1.25rem !important;
-            padding-bottom: 0.75rem !important;
+            padding-top: 1rem !important;
+            padding-bottom: 0.5rem !important;
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+            box-sizing: border-box !important;
             border-top: 1px solid var(--gpt-border) !important;
-            margin-top: 0.5rem !important;
+            margin-top: 0.75rem !important;
             background: var(--gpt-bg) !important;
           }
-          [data-testid="stChatInput"],
+          /* Inner layers transparent so the shell background shows (focus tint works) */
           [data-testid="stChatInput"] > div,
           [data-testid="stChatInput"] [data-baseweb="base-input"],
           [data-testid="stChatInput"] [data-baseweb="textarea"] {
-            background-color: #ffffff !important;
-            background: #ffffff !important;
+            background-color: transparent !important;
+            background: transparent !important;
             color-scheme: light !important;
           }
+          /* Composer — single calm border; focus = slightly darker fill only (no extra borders/shadows) */
           [data-testid="stChatInput"] {
-            border-radius: 0.75rem !important;
-            border: 1px solid #d9d9e3 !important;
+            border-radius: 1rem !important;
+            border: 1px solid #d1d5db !important;
             background: #ffffff !important;
+            min-height: 52px !important;
+            outline: none !important;
             box-shadow: none !important;
-            min-height: 56px !important;
-            padding: 0.25rem 0.5rem !important;
           }
           [data-testid="stChatInput"]:focus-within {
-            border-color: var(--gpt-accent) !important;
-            box-shadow: 0 0 0 1px var(--gpt-accent) !important;
+            background: #eef2f7 !important;
+            border-color: #d1d5db !important;
+            box-shadow: none !important;
+          }
+          /* Base Web inner focus chrome off — shell handles affordance */
+          [data-testid="stChatInput"] [data-baseweb="base-input"],
+          [data-testid="stChatInput"] [data-baseweb="textarea"],
+          [data-testid="stChatInput"] [data-baseweb="base-input"]:focus-within,
+          [data-testid="stChatInput"] [data-baseweb="textarea"]:focus-within {
+            box-shadow: none !important;
+            border: none !important;
           }
           [data-testid="stChatInput"] textarea,
-          [data-testid="stChatInput"] textarea:focus {
+          [data-testid="stChatInput"] textarea:focus,
+          [data-testid="stChatInput"] textarea:focus-visible {
             color: #0d0d0d !important;
             background: transparent !important;
             font-size: 1rem !important;
-            line-height: 1.5 !important;
             min-height: 44px !important;
             padding: 0.5rem 0.75rem !important;
+            outline: none !important;
+            box-shadow: none !important;
           }
           [data-testid="stChatInput"] textarea::placeholder {
-            color: #6b7280 !important;
+            color: var(--composer-placeholder) !important;
             opacity: 1 !important;
+            font-weight: 500 !important;
+          }
+          /* Send control — readable icon on white */
+          [data-testid="stChatInput"] button,
+          [data-testid="stChatInput"] [data-baseweb="button"] {
+            color: var(--composer-icon) !important;
+            opacity: 1 !important;
+          }
+          [data-testid="stChatInput"] button:hover,
+          [data-testid="stChatInput"] [data-baseweb="button"]:hover {
+            color: var(--composer-accent-soft) !important;
+            background: rgba(13, 148, 136, 0.08) !important;
+          }
+          [data-testid="stChatInput"] svg,
+          [data-testid="stChatInput"] button svg,
+          [data-testid="stChatInput"] [data-testid="stIconMaterial"] {
+            color: var(--composer-icon) !important;
+            fill: currentColor !important;
+            opacity: 1 !important;
+          }
+          [data-testid="stChatInput"] button:hover svg,
+          [data-testid="stChatInput"] [data-baseweb="button"]:hover svg {
+            color: var(--composer-accent-soft) !important;
+            fill: currentColor !important;
           }
           div[data-testid="column"]:has([data-testid="stPopover"]) {
             display: flex;
@@ -378,15 +728,15 @@ def inject_styles() -> None:
             justify-content: flex-end;
             padding-top: 0.15rem;
           }
-          /* Popover panel: solid white, no gaps showing sidebar through */
+          /* Popover panel: dark theme — matches sidebar rows (panel is portaled, not under stSidebar) */
           [data-testid="stPopoverContent"],
           [data-testid="stPopoverBody"],
           [data-baseweb="popover"] > div:last-child {
-            background: #ffffff !important;
-            color: #0d0d0d !important;
-            border: 1px solid #e5e5e5 !important;
-            border-radius: 8px !important;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.12) !important;
+            background: #343541 !important;
+            color: #ececf1 !important;
+            border: 1px solid #565869 !important;
+            border-radius: 6px !important;
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45) !important;
             padding: 4px !important;
             overflow: hidden !important;
           }
@@ -408,18 +758,58 @@ def inject_styles() -> None:
             font-weight: 500 !important;
             border-radius: 4px !important;
             border: none !important;
-            background: #ffffff !important;
-            color: #0d0d0d !important;
+            background: transparent !important;
+            color: #ececf1 !important;
+            -webkit-text-fill-color: #ececf1 !important;
             box-shadow: none !important;
             justify-content: flex-start !important;
           }
           [data-testid="stPopoverContent"] .stButton > button:hover,
           [data-testid="stPopoverBody"] .stButton > button:hover {
-            background: #f4f4f5 !important;
+            background: #40414f !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
           }
           [data-testid="stPopoverContent"] .stButton > button[kind="primary"],
           [data-testid="stPopoverBody"] .stButton > button[kind="primary"] {
-            background: #ffffff !important;
+            background: transparent !important;
+            color: #ececf1 !important;
+          }
+          /* Last pass: session row chips (after theme / emotion) — force dark fill + readable label */
+          [data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div:first-child button,
+          [data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div:first-child [data-baseweb="button"] {
+            background-color: #343541 !important;
+            background: #343541 !important;
+            background-image: none !important;
+            color: #ececf1 !important;
+            -webkit-text-fill-color: #ececf1 !important;
+            border: 1px solid #565869 !important;
+          }
+          /*
+           * Widget `help=` tooltips use Base Web popover + stTooltipContent (portaled to body).
+           * Mixed light main / dark sidebar themes often yield white panels + white text.
+           */
+          [data-testid="stTooltipContent"],
+          [data-testid="stTooltipErrorContent"],
+          .stTooltipContent,
+          .stTooltipErrorContent {
+            background-color: #2f2f2f !important;
+            background: #2f2f2f !important;
+            color: #ececf1 !important;
+            border: 1px solid #52525b !important;
+            border-radius: 8px !important;
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45) !important;
+            -webkit-text-fill-color: #ececf1 !important;
+          }
+          [data-testid="stTooltipContent"] *,
+          [data-testid="stTooltipErrorContent"] * {
+            color: #ececf1 !important;
+            -webkit-text-fill-color: #ececf1 !important;
+          }
+          [data-testid="stTooltipContent"] div,
+          [data-testid="stTooltipErrorContent"] div {
+            background-color: transparent !important;
+            background: transparent !important;
           }
         </style>
         """,
@@ -452,10 +842,18 @@ def health_check() -> tuple[bool, str]:
 
 
 def fetch_all_chats() -> list[dict[str, Any]]:
-    r = requests.get(api_url("/api/v1/chats"), timeout=30)
+    # Slim list is fast; Mongo uses short timeouts server-side (see app/db/mongo.py).
+    r = requests.get(api_url("/api/v1/chats"), timeout=15)
     r.raise_for_status()
     data = r.json()
     return data if isinstance(data, list) else []
+
+
+def fetch_chat_session(session_id: str) -> dict[str, Any]:
+    r = requests.get(api_url(f"/api/v1/chat/{session_id}"), timeout=60)
+    r.raise_for_status()
+    data = r.json()
+    return data if isinstance(data, dict) else {}
 
 
 def iter_chat_stream(message: str) -> Iterator[str]:
@@ -492,9 +890,28 @@ def patch_session_name(session_id: str, name: str) -> None:
     r.raise_for_status()
 
 
+def ensure_remote_session(session_id: str) -> None:
+    """Persist an empty chat so the sidebar list shows this session without Refresh."""
+    try:
+        r = requests.post(
+            api_url(f"/api/v1/chat/{session_id}/ensure"),
+            timeout=15,
+        )
+        r.raise_for_status()
+    except requests.RequestException:
+        pass
+
+
 def session_display_title(chat_doc: dict[str, Any]) -> str:
     n = (chat_doc.get("name") or "").strip()
-    if n.lower() in ("untitled chat", "untitled", "untilled chat", "untilled"):
+    if n.lower() in (
+        "untitled chat",
+        "untitled",
+        "untilled chat",
+        "untilled",
+        "new chat",
+        "new session",
+    ):
         return "Untitled chat"
     if n:
         return n
@@ -557,14 +974,14 @@ def render_user_message(content: str) -> None:
     # Wide right column so the bubble sits on the right like ChatGPT
     _, right = st.columns([1, 11])
     with right:
-        with st.chat_message("user", avatar=_AVATAR_USER, width="content"):
+        with st.chat_message("user", avatar=_USER_AVATAR, width="content"):
             st.markdown(content)
 
 
 def render_assistant_message(content: str) -> None:
     left, _ = st.columns([11, 1])
     with left:
-        with st.chat_message("assistant", avatar=_AVATAR_AI, width="content"):
+        with st.chat_message("assistant", avatar=_AI_AVATAR, width="content"):
             st.markdown(content)
 
 
@@ -605,6 +1022,7 @@ def main() -> None:
             st.session_state.session_id = str(uuid.uuid4())
             st.session_state.messages = []
             st.session_state.current_session_label = "New session"
+            ensure_remote_session(st.session_state.session_id)
             st.rerun()
 
         st.markdown("**Conversations**")
@@ -614,8 +1032,6 @@ def main() -> None:
             placeholder="Search sessions…",
             label_visibility="collapsed",
         )
-        if st.button("Refresh", use_container_width=True):
-            st.session_state.pop("_chats_cache", None)
 
         try:
             chats = fetch_all_chats()
@@ -646,13 +1062,22 @@ def main() -> None:
                     if st.button(
                         title,
                         key=f"open_{sid}",
+                        type="tertiary",
                         use_container_width=True,
                         help=hint,
                     ):
-                        st.session_state.session_id = sid
-                        st.session_state.messages = normalize_messages(c.get("messages"))
-                        st.session_state.current_session_label = title
-                        st.rerun()
+                        try:
+                            doc = fetch_chat_session(sid)
+                            st.session_state.session_id = sid
+                            st.session_state.messages = normalize_messages(
+                                doc.get("messages")
+                            )
+                            st.session_state.current_session_label = session_display_title(
+                                doc
+                            )
+                            st.rerun()
+                        except requests.RequestException as e:
+                            st.error(f"Could not load conversation: {e}")
                 with col_menu:
                     with st.popover(
                         "\u200b",
@@ -696,54 +1121,79 @@ def main() -> None:
         st.markdown(f"**{st.session_state.current_session_label}**")
         st.caption(st.session_state.session_id[:13] + "…")
 
-    st.markdown(
-        f"""
-        <div class="gpt-topbar" role="banner">
-          <p class="gpt-topbar-model">Intellectual AI</p>
-          <h1 class="gpt-topbar-title">{html.escape(st.session_state.current_session_label)}</h1>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if not st.session_state.messages:
+    bar_left, bar_right = st.columns([5, 1], vertical_alignment="center")
+    with bar_left:
         st.markdown(
-            """
-            <div style="text-align:center;padding:2.5rem 1rem 1.5rem;max-width:28rem;margin:0 auto;">
-              <p style="margin:0 0 0.35rem;font-size:1.05rem;font-weight:600;color:#0d0d0d;">
-                Jeffry the Genius
-              </p>
-              <p style="margin:0;color:#6b7280;font-size:0.95rem;line-height:1.5;">
-                Type a message below. The assistant streams from your FastAPI app
-                (<code style="background:#ececf1;padding:0.12rem 0.35rem;border-radius:4px;">/api/v1/chat/stream</code>).
-              </p>
+            f"""
+            <div class="gpt-topbar" role="banner">
+              <p class="gpt-topbar-model">Intellectual AI</p>
+              <h1 class="gpt-topbar-title">{html.escape(st.session_state.current_session_label)}</h1>
             </div>
             """,
             unsafe_allow_html=True,
         )
+    with bar_right:
+        if st.button(
+            "☰ Menu",
+            key="intellectual_show_sidebar",
+            help="Open conversations & Connection (sidebar)",
+            use_container_width=True,
+        ):
+            _expand_sidebar_via_browser()
 
-    for msg in st.session_state.messages:
-        role = msg.get("role", "user")
-        text = msg.get("content", "")
-        if role == "user":
-            render_user_message(text)
-        else:
-            render_assistant_message(text)
+    chat_body = st.container()
+    with chat_body:
+        if not st.session_state.messages:
+            st.markdown(
+                """
+                <div style="text-align:center;padding:2.5rem 1rem 1.5rem;max-width:28rem;margin:0 auto;">
+                  <p style="margin:0 0 0.35rem;font-size:1.05rem;font-weight:600;color:#0d0d0d;">
+                    Jeffry the Genius
+                  </p>
+                  <p style="margin:0;color:#6b7280;font-size:0.95rem;line-height:1.5;">
+                    Use the message box at the <strong>bottom</strong> of this chat. Replies stream from
+                    <code style="background:#ececf1;padding:0.12rem 0.35rem;border-radius:4px;">/api/v1/chat/stream</code>.
+                  </p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-    if prompt := st.chat_input("Message…"):
+        for msg in st.session_state.messages:
+            role = msg.get("role", "user")
+            text = msg.get("content", "")
+            if role == "user":
+                render_user_message(text)
+            else:
+                render_assistant_message(text)
+
+    raw_prompt = st.chat_input("Message…", key="intellectual_chat_input")
+    if raw_prompt and str(raw_prompt).strip():
+        prompt = str(raw_prompt).strip()
         st.session_state.messages.append({"role": "user", "content": prompt})
         render_user_message(prompt)
 
         left, _ = st.columns([11, 1])
         with left:
-            with st.chat_message("assistant", avatar=_AVATAR_AI, width="content"):
+            with st.chat_message("assistant", avatar=_AI_AVATAR, width="content"):
                 try:
                     full = st.write_stream(iter_chat_stream(prompt))
                     st.session_state.messages.append(
                         {"role": "assistant", "content": full or ""}
                     )
-                    if st.session_state.current_session_label == "New session":
-                        st.session_state.current_session_label = "Untitled chat"
+                    prev_label = st.session_state.current_session_label
+                    try:
+                        doc = fetch_chat_session(st.session_state.session_id)
+                        st.session_state.current_session_label = (
+                            session_display_title(doc)
+                        )
+                    except requests.RequestException:
+                        if st.session_state.current_session_label == "New session":
+                            st.session_state.current_session_label = "Untitled chat"
+                    # Sidebar / top bar render before this block; rerun once when title updates
+                    # so the active session name and conversation list refresh immediately.
+                    if st.session_state.current_session_label != prev_label:
+                        st.rerun()
                 except httpx.HTTPStatusError as e:
                     st.error(
                         f"HTTP {e.response.status_code}. Confirm the API is running and "

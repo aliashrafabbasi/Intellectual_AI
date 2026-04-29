@@ -4,7 +4,9 @@ from pydantic import BaseModel, Field
 
 from app.services.chat_services import (
     chat_with_ai,
+    ensure_session_document,
     list_chats,
+    load_chat,
     remove_chat,
     rename_session,
     stream_chat_with_ai,
@@ -39,6 +41,20 @@ def chat_stream(body: ChatBody):
 @router.get("/chats")
 def get_all_chats():
     return list_chats()
+
+
+@router.post("/chat/{session_id}/ensure")
+def ensure_chat_session(session_id: str):
+    """Create an empty chat row if missing so the client can show it in the list immediately."""
+    return ensure_session_document(session_id)
+
+
+@router.get("/chat/{session_id}")
+def get_chat(session_id: str):
+    doc = load_chat(session_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Chat not found.")
+    return doc
 
 
 @router.patch("/chat/{session_id}")

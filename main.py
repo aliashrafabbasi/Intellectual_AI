@@ -16,8 +16,8 @@ async def pymongo_exception_handler(_request: Request, _exc: PyMongoError) -> JS
     return JSONResponse(
         status_code=503,
         content={
-            "detail": "Database unavailable. Start MongoDB (e.g. docker run … mongo:7) "
-            "or set MONGO_URI in .env."
+            "detail": "Database unavailable. Start MongoDB locally or set MONGO_URI in .env "
+            "(e.g. mongodb://127.0.0.1:27017 or Atlas)."
         },
     )
 
