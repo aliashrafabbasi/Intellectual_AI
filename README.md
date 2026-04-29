@@ -203,3 +203,4 @@ Intellectual_AI/
 - **Streamlit shows “Unavailable” for the API** — Start Uvicorn first; align `INTELLECTUAL_API_URL` with the host/port Uvicorn uses.
 - **401 / errors from Groq** — Invalid or missing `GROQ_API_KEY`.
 - **`ModuleNotFoundError: app`** — Run commands from the **project root** directory with the venv activated.
+# Intellectual_AI
