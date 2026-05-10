@@ -59,7 +59,11 @@ def main() -> int:
     except Exception as e:
         print(f"Warning: created_at index was not created: {e}", file=sys.stderr)
 
-    print("\nNext steps:\n  • API:  uvicorn main:app --reload\n  • UI:   streamlit run streamlit_app.py")
+    print(
+        "\nNext steps:\n"
+        "  • API:       uvicorn main:app --reload\n"
+        "  • Web UI:    cd frontend && npm install && npm run dev"
+    )
     return 0
 
 

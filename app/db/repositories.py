@@ -4,7 +4,21 @@ from app.db.mongo import chats_collection
 
 
 def get_chat(session_id: str):
-    return chats_collection.find_one({"session_id":session_id})
+    return chats_collection.find_one({"session_id": session_id})
+
+
+def get_chat_messages_tail(session_id: str, limit: int) -> list | None:
+    """
+    Return only the last `limit` messages (smaller payload than full find_one for long chats).
+    None if the session document does not exist.
+    """
+    doc = chats_collection.find_one(
+        {"session_id": session_id},
+        {"messages": {"$slice": -limit}},
+    )
+    if doc is None:
+        return None
+    return doc.get("messages") or []
 
 def create_chat(session_id: str):
     chat = {

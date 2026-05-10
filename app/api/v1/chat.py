@@ -35,6 +35,11 @@ def chat_stream(body: ChatBody):
     return StreamingResponse(
         stream_chat_with_ai(body.session_id, body.message),
         media_type="text/plain; charset=utf-8",
+        headers={
+            "Cache-Control": "no-cache",
+            # Behind nginx: disable buffering so tokens flush immediately
+            "X-Accel-Buffering": "no",
+        },
     )
 
 

@@ -1,9 +1,0 @@
-# Light chat canvas + dark sidebar/widgets (fixes white sidebar buttons from base="light").
-# Main pane is forced light in streamlit_app.py inject_styles().
-[theme]
-base = "dark"
-primaryColor = "#10a37f"
-# Main content area — ChatGPT-style canvas
-backgroundColor = "#f7f7f8"
-# Sidebar + widget chrome (buttons, inputs) — match app sidebar
-secondaryBackgroundColor = "#202123"
