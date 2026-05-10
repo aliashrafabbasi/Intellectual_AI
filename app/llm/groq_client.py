@@ -4,12 +4,42 @@ from groq import Groq
 
 from app.core.config import (
     GROQ_API_KEY,
+    GROQ_CHAT_TEMPERATURE,
     GROQ_MAX_TOKENS,
     GROQ_MODEL,
+    GROQ_ON_DEMAND_TOKEN_BUDGET,
     GROQ_TITLE_MAX_TOKENS,
+    GROQ_TITLE_MODEL,
 )
 
 _client = Groq(api_key=GROQ_API_KEY)
+
+# Slack between our char-based estimate and Groq’s real tokenizer (avoids 413).
+_TOKEN_BUDGET_SLACK = 200
+
+
+def _estimate_prompt_tokens(messages: list) -> int:
+    """Pessimistic input-token estimate: prompt + max_tokens must stay under on_demand TPM."""
+    if not messages:
+        return 1
+    total = 0
+    for m in messages:
+        c = str(m.get("content", ""))
+        total += max(1, (len(c) + 2) // 3)
+    total += max(4, len(messages) * 4)
+    # Char/3 often underestimates vs BPE; bias high so we shrink max_tokens enough.
+    return int(total * 1.12) + 32
+
+
+def _completion_max_tokens(messages: list) -> int:
+    """
+    Groq on_demand rejects when estimated prompt + requested max_tokens exceeds ~6000 TPM.
+    """
+    prompt_est = _estimate_prompt_tokens(messages)
+    room = GROQ_ON_DEMAND_TOKEN_BUDGET - prompt_est - _TOKEN_BUDGET_SLACK
+    # Never pass negative max_tokens to the API.
+    capped = min(GROQ_MAX_TOKENS, max(0, room))
+    return max(16, capped)
 
 _TITLE_SYSTEM = (
     "You reply with ONLY a short conversation title (maximum 8 words). "
@@ -32,7 +62,7 @@ def generate_chat_title(user_message: str, assistant_reply: str) -> str:
     u = (user_message or "")[:1500]
     a = (assistant_reply or "")[:1500]
     completion = _client.chat.completions.create(
-        model=GROQ_MODEL,
+        model=GROQ_TITLE_MODEL,
         messages=[
             {"role": "system", "content": _TITLE_SYSTEM},
             {
@@ -50,8 +80,8 @@ def get_ai_response(messages: list) -> str:
     completion = _client.chat.completions.create(
         model=GROQ_MODEL,
         messages=messages,
-        temperature=0.4,
-        max_tokens=GROQ_MAX_TOKENS,
+        temperature=GROQ_CHAT_TEMPERATURE,
+        max_tokens=_completion_max_tokens(messages),
     )
     return (completion.choices[0].message.content or "").strip()
 
@@ -60,8 +90,8 @@ def stream_ai_response(messages: list) -> Iterator[str]:
     stream = _client.chat.completions.create(
         model=GROQ_MODEL,
         messages=messages,
-        temperature=0.4,
-        max_tokens=GROQ_MAX_TOKENS,
+        temperature=GROQ_CHAT_TEMPERATURE,
+        max_tokens=_completion_max_tokens(messages),
         stream=True,
     )
     for chunk in stream:

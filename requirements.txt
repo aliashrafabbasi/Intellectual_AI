@@ -10,8 +10,3 @@ pydantic>=2.5,<3
 # --- LLM & database ---
 groq>=0.4,<1
 pymongo>=4.6,<5
-
-# --- Streamlit UI & HTTP clients ---
-streamlit>=1.40,<2
-httpx>=0.27,<0.29
-requests>=2.31,<3

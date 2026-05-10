@@ -3,12 +3,22 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from pymongo.errors import PyMongoError
 
 from app.api.v1.chat import router as chat_router
+from app.core.config import CORS_ORIGINS
 
 app = FastAPI(title="Intellectual Ai")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.exception_handler(PyMongoError)
