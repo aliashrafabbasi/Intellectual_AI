@@ -69,7 +69,6 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [menuOpenSid, setMenuOpenSid] = useState<string | null>(null);
-  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [renameFor, setRenameFor] = useState<{ sid: string; title: string } | null>(null);
   const [renameInput, setRenameInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -93,16 +92,6 @@ export default function App() {
       document.removeEventListener("click", close);
     };
   }, [menuOpenSid]);
-
-  useEffect(() => {
-    if (!themeMenuOpen) return;
-    const close = () => setThemeMenuOpen(false);
-    const t = window.setTimeout(() => document.addEventListener("click", close), 0);
-    return () => {
-      clearTimeout(t);
-      document.removeEventListener("click", close);
-    };
-  }, [themeMenuOpen]);
 
   const persistApiBase = useCallback((value: string) => {
     setApiBase(value);
@@ -419,54 +408,7 @@ export default function App() {
             <h1 className="topbar-title">{sessionLabel}</h1>
           </div>
 
-          <div className="theme-dropdown-wrap">
-            <button
-              type="button"
-              className="theme-trigger"
-              aria-label="Appearance"
-              aria-haspopup="menu"
-              aria-expanded={themeMenuOpen}
-              onClick={(e) => {
-                e.stopPropagation();
-                setThemeMenuOpen((open) => !open);
-              }}
-            >
-              <SunIcon />
-            </button>
-            {themeMenuOpen && (
-              <div
-                className="theme-dropdown"
-                role="menu"
-                aria-label="Theme"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={theme === "light"}
-                  className={`theme-dropdown-item ${theme === "light" ? "is-active" : ""}`}
-                  onClick={() => {
-                    setTheme("light");
-                    setThemeMenuOpen(false);
-                  }}
-                >
-                  Light
-                </button>
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={theme === "dark"}
-                  className={`theme-dropdown-item ${theme === "dark" ? "is-active" : ""}`}
-                  onClick={() => {
-                    setTheme("dark");
-                    setThemeMenuOpen(false);
-                  }}
-                >
-                  Dark
-                </button>
-              </div>
-            )}
-          </div>
+          <ThemeControl theme={theme} onThemeChange={setTheme} />
         </header>
 
         <div className="chat-scroll">
@@ -555,6 +497,77 @@ function SunIcon() {
         <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
       </g>
     </svg>
+  );
+}
+
+function ThemeControl({
+  theme,
+  onThemeChange,
+}: {
+  theme: Theme;
+  onThemeChange: (t: Theme) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    const t = window.setTimeout(() => document.addEventListener("click", close), 0);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("click", close);
+    };
+  }, [open]);
+
+  return (
+    <div className="theme-dropdown-wrap">
+      <button
+        type="button"
+        className="theme-trigger"
+        aria-label="Appearance"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+      >
+        <SunIcon />
+      </button>
+      {open && (
+        <div
+          className="theme-dropdown"
+          role="menu"
+          aria-label="Theme"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            role="menuitemradio"
+            aria-checked={theme === "light"}
+            className={`theme-dropdown-item ${theme === "light" ? "is-active" : ""}`}
+            onClick={() => {
+              onThemeChange("light");
+              setOpen(false);
+            }}
+          >
+            Light
+          </button>
+          <button
+            type="button"
+            role="menuitemradio"
+            aria-checked={theme === "dark"}
+            className={`theme-dropdown-item ${theme === "dark" ? "is-active" : ""}`}
+            onClick={() => {
+              onThemeChange("dark");
+              setOpen(false);
+            }}
+          >
+            Dark
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 

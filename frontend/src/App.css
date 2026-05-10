@@ -386,6 +386,9 @@
 .theme-dropdown-wrap {
   position: relative;
   flex-shrink: 0;
+}
+
+.topbar .theme-dropdown-wrap {
   margin-left: auto;
 }
 
@@ -644,14 +647,23 @@
   margin-bottom: 0;
 }
 
-/* ChatGPT-style fenced code: panel + toolbar + copy (see markdownComponents.tsx) */
+/* ChatGPT-style fenced code: panel + toolbar + theme + copy (see markdownComponents.tsx) */
 .bubble .md-code-panel {
   margin: 0.65rem 0;
   border-radius: 12px;
-  border: 1px solid #1e293b;
-  background: #0f172a;
   overflow: hidden;
   box-shadow: 0 4px 24px rgba(15, 23, 42, 0.2);
+}
+
+.bubble .md-code-panel--dark {
+  border: 1px solid #1e293b;
+  background: #0f172a;
+}
+
+.bubble .md-code-panel--light {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
 }
 
 .bubble .md-code-toolbar {
@@ -660,8 +672,23 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.4rem 0.65rem 0.45rem;
+}
+
+.bubble .md-code-panel--dark .md-code-toolbar {
   background: #1e293b;
   border-bottom: 1px solid #334155;
+}
+
+.bubble .md-code-panel--light .md-code-toolbar {
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.bubble .md-code-toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
 }
 
 .bubble .md-code-lang {
@@ -670,16 +697,70 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.bubble .md-code-panel--dark .md-code-lang {
   color: #94a3b8;
+}
+
+.bubble .md-code-panel--light .md-code-lang {
+  color: #64748b;
+}
+
+.bubble .md-code-theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.bubble .md-code-panel--dark .md-code-theme-btn {
+  border-color: #475569;
+  background: #334155;
+  color: #e2e8f0;
+}
+
+.bubble .md-code-panel--dark .md-code-theme-btn:hover {
+  border-color: #64748b;
+  background: #475569;
+  color: #fff;
+}
+
+.bubble .md-code-panel--light .md-code-theme-btn {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+}
+
+.bubble .md-code-panel--light .md-code-theme-btn:hover {
+  border-color: var(--accent, #10a37f);
+  color: var(--accent, #10a37f);
+}
+
+.bubble .md-code-theme-btn:focus-visible {
+  outline: 2px solid var(--accent, #10a37f);
+  outline-offset: 2px;
+}
+
+.bubble .md-code-theme-icon {
+  display: block;
 }
 
 .bubble .md-code-copy-btn {
   flex-shrink: 0;
   padding: 0.28rem 0.65rem;
   border-radius: 8px;
-  border: 1px solid #475569;
-  background: #334155;
-  color: #e2e8f0;
   font-size: 0.78rem;
   font-weight: 600;
   transition:
@@ -688,25 +769,65 @@
     color 0.15s ease;
 }
 
-.bubble .md-code-copy-btn:hover {
+.bubble .md-code-panel--dark .md-code-copy-btn {
+  border: 1px solid #475569;
+  background: #334155;
+  color: #e2e8f0;
+}
+
+.bubble .md-code-panel--dark .md-code-copy-btn:hover {
   background: #475569;
   border-color: #64748b;
   color: #fff;
 }
 
+.bubble .md-code-panel--light .md-code-copy-btn {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+}
+
+.bubble .md-code-panel--light .md-code-copy-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+/* Prism syntax highlighting fills `.md-code-pre--syntax`; keep plain `pre>code` unstyled for edge cases */
 .bubble .md-code-pre {
   margin: 0;
-  padding: 0.85rem 1rem 1rem;
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  line-height: 1.55;
-  background: #0f172a;
-  color: #e2e8f0;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 
-.bubble .md-code-pre code {
+.bubble .md-code-pre--syntax {
+  padding: 0;
+}
+
+.bubble .md-code-panel--dark .md-code-pre {
+  background: #1e1e1e;
+}
+
+.bubble .md-code-panel--light .md-code-pre {
+  background: #ffffff;
+}
+
+.bubble .md-code-pre:not(.md-code-pre--syntax) {
+  padding: 0.85rem 1rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.bubble .md-code-panel--dark .md-code-pre:not(.md-code-pre--syntax) {
+  color: #e2e8f0;
+}
+
+.bubble .md-code-panel--light .md-code-pre:not(.md-code-pre--syntax) {
+  color: #0f172a;
+}
+
+.bubble .md-code-pre:not(.md-code-pre--syntax) code {
   font-family: inherit;
   font-size: inherit;
   background: transparent !important;
